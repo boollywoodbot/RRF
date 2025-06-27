@@ -531,10 +531,28 @@ async def send_logs(client: Client, m: Message):  # Correct parameter name
 @bot.on_message(filters.command(["drm"]) )
 async def txt_handler(bot: Client, m: Message):  
     if m.chat.id not in AUTH_USERS and m.chat.id not in CHANNELS_LIST:
-        print(f"User ID not in AUTH_USERS", m.chat.id)
-        print(f"Channel ID not in CHANNELS_LIST", m.chat.id)
-        await m.reply_text(f"<blockquote>__**Oopss! You are not a Premium member** __\n__**PLEASE /upgrade YOUR PLAN**__\n__**Send me your user id for authorization**__\n__**Your User id**__ - `{m.chat.id}`</blockquote>\n")
+        await m.reply_text(f"⛔ Not authorized.\nSend your user ID for access.\n\nYour ID: `{m.chat.id}`")
         return
+
+    editable = await m.reply_text("📥 Send me your .txt file containing MPD or links...")
+    
+    try:
+        input: Message = await bot.listen(editable.chat.id, timeout=60)
+        if input.document:
+            # ✅ Step 3: Get tokens directly from txt file
+            cwtoken, cptoken, pwtoken = await get_tokens_from_txt(bot, editable, input)
+            raw_text4 = cwtoken  # Optional fallback use
+        else:
+            await editable.edit("❌ You must send a .txt file.")
+            return
+
+    except Exception as e:
+        await editable.edit(f"❌ Something went wrong: {e}")
+        return
+
+    # ✅ Now continue processing video links with `cwtoken`, `cptoken`, `pwtoken`
+    await editable.edit("🎯 Token ready! Now processing videos...")
+
     editable = await m.reply_text(f"**🔹Hi I am Poweful TXT Downloader📥 Bot.\n🔹Send me the txt file and wait.\n\n<blockquote><b>𝗡𝗼𝘁𝗲:\nAll input must be given in 20 sec</b></blockquote>**")
     input: Message = await bot.listen(editable.chat.id)
     x = await input.download()
