@@ -1261,6 +1261,38 @@ async def text_handler(bot: Client, m: Message):
         await m.reply_text(str(e))
 
 
+@bot.on_message(filters.command(["drm"]))
+async def txt_handler(bot: Client, m: Message):  
+    if m.chat.id not in AUTH_USERS and m.chat.id not in CHANNELS_LIST:
+        await m.reply_text(
+            f"⛔ You are not authorized to use this bot.\nYour ID: `{m.chat.id}`"
+        )
+        return
+
+    editable = await m.reply_text("📥 Send me your .txt file containing MPD or video links, or wait 20 seconds to skip...")
+
+    try:
+        input: Message = await bot.listen(editable.chat.id, timeout=20)
+
+        if input.document:
+            cwtoken, cptoken, pwtoken = await get_tokens_from_txt(bot, editable, input)
+            token_source = "txt"
+        else:
+            raise Exception("Not a document")
+
+    except Exception as e:
+        await editable.edit("⚠️ No valid .txt received. Using default token.")
+        cwtoken = DEFAULT_CW_TOKEN
+        cptoken = DEFAULT_CP_TOKEN
+        pwtoken = DEFAULT_PW_TOKEN
+        token_source = "default"
+
+    headers = {
+        "user-agent": "okhttp",
+        "x-access-token": cwtoken
+    }
+
+    await editable.edit(f"✅ Token set using `{token_source}`. Now ready for resolution or download...")
 
 
 bot.run()
