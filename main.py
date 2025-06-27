@@ -108,7 +108,6 @@ DEFAULT_PW_TOKEN = "your_default_pw_token"
 # 🔎 Token Extractor from Text
 def extract_token_from_text(text):
     import re
-@bot.on_message(filters.command("remauth") & filters.private)
     match = re.search(r"(eyJ[\w-]+\.[\w-]+\.[\w-]+)", text)
     return match.group(1) if match else None
 
