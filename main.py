@@ -100,6 +100,7 @@ async def add_auth_user(client: Client, message: Message):
         await message.reply_text("**Please provide a valid user ID.**")
         
 @bot.on_message(filters.command("remauth") & filters.private)
+
 # 🔐 Default Tokens
 DEFAULT_CW_TOKEN = "your_default_cw_token"
 DEFAULT_CP_TOKEN = "your_default_cp_token"
@@ -131,6 +132,7 @@ async def get_tokens_from_txt(bot, editable, txt_msg):
         token = DEFAULT_CW_TOKEN
 
     return token, token, token
+    
 async def remove_auth_user(client: Client, message: Message):
     if message.chat.id != OWNER:
         return await message.reply_text("**This command only for bot Owner**")
