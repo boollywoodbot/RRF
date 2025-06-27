@@ -100,37 +100,23 @@ async def add_auth_user(client: Client, message: Message):
         await message.reply_text("**Please provide a valid user ID.**")
         
 
-# 🔐 Default Tokens
-DEFAULT_CW_TOKEN = "your_default_cw_token"
-DEFAULT_CP_TOKEN = "your_default_cp_token"
-DEFAULT_PW_TOKEN = "your_default_pw_token"
+await editable.edit("📥 Send me your .txt file or just wait 20s to skip...")
 
-# 🔎 Token Extractor from Text
-def extract_token_from_text(text):
-    import re
-    match = re.search(r"(eyJ[\w-]+\.[\w-]+\.[\w-]+)", text)
-    return match.group(1) if match else None
+try:
+    input: Message = await bot.listen(editable.chat.id, timeout=20)
 
-# 📥 Get Token from TXT File
-async def get_tokens_from_txt(bot, editable, txt_msg):
-    try:
-        txt_path = await txt_msg.download()
-        with open(txt_path, "r", encoding="utf-8") as f:
-            content = f.read()
+    if input.document:  # ✅ Agar user ne sach me .txt bheji
+        cwtoken, cptoken, pwtoken = await get_tokens_from_txt(bot, editable, input)
 
-        token = extract_token_from_text(content)
+    else:  # ❌ Agar photo ya text bhej diya
+        raise Exception("Invalid input")
 
-        if token:
-            await editable.edit("✅ Token auto-extracted from TXT file.")
-        else:
-            await editable.edit("⚠️ Token not found. Using default.")
-            token = DEFAULT_CW_TOKEN
+except:  # ❌ Timeout ya error → fallback to fridge
+    await editable.edit("⚠️ No txt received. Using default token...")
+    cwtoken = DEFAULT_CW_TOKEN
+    cptoken = DEFAULT_CP_TOKEN
+    pwtoken = DEFAULT_PW_TOKEN
 
-    except Exception as e:
-        await editable.edit(f"❌ TXT processing failed. Using default.\n\n{e}")
-        token = DEFAULT_CW_TOKEN
-
-    return token, token, token
 
 async def remove_auth_user(client: Client, message: Message):
     if message.chat.id != OWNER:
