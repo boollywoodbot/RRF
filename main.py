@@ -47,7 +47,7 @@ bot = Client(
     bot_token=BOT_TOKEN
 )
 
-AUTH_USER = os.environ.get('AUTH_USERS', '7912270773').split(',')
+AUTH_USER = os.environ.get('AUTH_USERS', '5680454765').split(',')
 AUTH_USERS = [int(user_id) for user_id in AUTH_USER]
 if int(OWNER) not in AUTH_USERS:
     AUTH_USERS.append(int(OWNER))
@@ -70,9 +70,9 @@ photozip = 'https://envs.sh/cD_.jpg'
 
 
 # Inline keyboard for start command
-BUTTONSCONTACT = InlineKeyboardMarkup([[InlineKeyboardButton(text="📞 Contact", url="https://t.me/AimforAimms")]])
+BUTTONSCONTACT = InlineKeyboardMarkup([[InlineKeyboardButton(text="📞 Contact", url="https://t.me/saini_contact_bot")]])
 keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(text="🛠️ Help", url="https://t.me/+3k-1zcJxINYwNGZl"), InlineKeyboardButton(text="🛠️ Repo", url="https://github.com/boollywoodbot/Saini-txt-direct1")],
+        [InlineKeyboardButton(text="🛠️ Help", url="https://t.me/+3k-1zcJxINYwNGZl"), InlineKeyboardButton(text="🛠️ Repo", url="https://github.com/cyberseller999/saini-txt-direct")],
 ])
 
 # Image URLs for the random image feature
@@ -132,7 +132,7 @@ async def get_tokens_from_txt(bot, editable, txt_msg):
         token = DEFAULT_CW_TOKEN
 
     return token, token, token
-    
+
 async def remove_auth_user(client: Client, message: Message):
     if message.chat.id != OWNER:
         return await message.reply_text("**This command only for bot Owner**")
@@ -536,29 +536,14 @@ async def txt_handler(client: Client, m: Message):
         f"📌 𝗠𝗮𝗶𝗻 𝗙𝗲𝗮𝘁𝘂𝗿𝗲𝘀:\n\n"  
         f"➥ /start – Bot Status Check\n"
         f"➥ /drm – Extract from .txt (Auto)\n"
-        f"➥ /y2t – YouTube → .txt Converter\n"  
-        f"➥ /ytm – YT .txt → .mp3 downloader\n"  
-        f"➥ /yt2m – YT link → .mp3 downloader\n"  
         f"➥ /t2t – Text → .txt Generator\n" 
         f"➥ /stop – Cancel Running Task\n"
         f"▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰ \n" 
-        f"⚙️ 𝗧𝗼𝗼𝗹𝘀 & 𝗦𝗲𝘁𝘁𝗶𝗻𝗴𝘀: \n\n" 
-        f"➥ /cookies – Update YT Cookies\n" 
+     
         f"➥ /id – Get Chat/User ID\n"  
         f"➥ /info – User Details\n"  
         f"➥ /logs – View Bot Activity\n"
         f"▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n"
-        f"👤 𝐔𝐬𝐞𝐫 𝐀𝐮𝐭𝐡𝐞𝐧𝐭𝐢𝐜𝐚𝐭𝐢𝐨𝐧: **(OWNER)**\n\n" 
-        f"➥ /addauth xxxx – Add User ID\n" 
-        f"➥ /remauth xxxx – Remove User ID\n"  
-        f"➥ /users – Total User List\n"  
-        f"▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n"
-        f"📁 𝐂𝐡𝐚𝐧𝐧𝐞𝐥𝐬: **(Auth Users)**\n\n" 
-        f"➥ /addchnl -100xxxx – Add\n" 
-        f"➥ /remchnl -100xxxx – Remove\n"  
-        f"➥ /channels – List - (OWNER)\n"  
-        f"▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n"
-        f"💡 𝗡𝗼𝘁𝗲:\n\n"  
         f"• Send any link for auto-extraction\n"  
         f"• Supports batch processing\n\n"  
         f"▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰\n"
@@ -579,10 +564,28 @@ async def send_logs(client: Client, m: Message):  # Correct parameter name
 @bot.on_message(filters.command(["drm"]) )
 async def txt_handler(bot: Client, m: Message):  
     if m.chat.id not in AUTH_USERS and m.chat.id not in CHANNELS_LIST:
-        print(f"User ID not in AUTH_USERS", m.chat.id)
-        print(f"Channel ID not in CHANNELS_LIST", m.chat.id)
-        await m.reply_text(f"<blockquote>__**Oopss! You are not a Premium member** __\n__**PLEASE /upgrade YOUR PLAN**__\n__**Send me your user id for authorization**__\n__**Your User id**__ - `{m.chat.id}`</blockquote>\n")
+        await m.reply_text(f"⛔ Not authorized.\nSend your user ID for access.\n\nYour ID: `{m.chat.id}`")
         return
+
+    editable = await m.reply_text("📥 Send me your .txt file containing MPD or links...")
+    
+    try:
+        input: Message = await bot.listen(editable.chat.id, timeout=60)
+        if input.document:
+            # ✅ Step 3: Get tokens directly from txt file
+            cwtoken, cptoken, pwtoken = await get_tokens_from_txt(bot, editable, input)
+            raw_text4 = cwtoken  # Optional fallback use
+        else:
+            await editable.edit("❌ You must send a .txt file.")
+            return
+
+    except Exception as e:
+        await editable.edit(f"❌ Something went wrong: {e}")
+        return
+
+    # ✅ Now continue processing video links with `cwtoken`, `cptoken`, `pwtoken`
+    await editable.edit("🎯 Token ready! Now processing videos...")
+
     editable = await m.reply_text(f"**🔹Hi I am Poweful TXT Downloader📥 Bot.\n🔹Send me the txt file and wait.\n\n<blockquote><b>𝗡𝗼𝘁𝗲:\nAll input must be given in 20 sec</b></blockquote>**")
     input: Message = await bot.listen(editable.chat.id)
     x = await input.download()
@@ -687,7 +690,37 @@ async def txt_handler(bot: Client, m: Message):
     else:
         CR = raw_text3
 
-  await editable.edit(f"**🔹Send the Video Thumb URL or send /d for use default**")
+DEFAULT_CW_TOKEN = "your_default_cw_token"
+DEFAULT_CP_TOKEN = "your_default_cp_token"
+DEFAULT_PW_TOKEN = "your_default_pw_token"
+
+def extract_token_from_text(text):
+    match = re.search(r"(eyJ[\w-]+\.[\w-]+\.[\w-]+)", text)
+    return match.group(1) if match else None
+
+async def get_tokens_from_txt(bot, editable, txt_msg: Message):
+    try:
+        txt_path = await txt_msg.download()
+        with open(txt_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        token = extract_token_from_text(content)
+
+        if token:
+            await editable.edit("✅ Token auto-extracted from TXT file.")
+        else:
+            await editable.edit("⚠️ No token found. Using default token.")
+            token = DEFAULT_CW_TOKEN
+
+    except Exception as e:
+        await editable.edit(f"❌ TXT processing failed. Using default.\n\n{e}")
+        token = DEFAULT_CW_TOKEN
+
+    # Assign all 3
+    return token, token, token
+
+        
+    await editable.edit(f"**🔹Send the Video Thumb URL or send /d for use default**")
     try:
         input6: Message = await bot.listen(editable.chat.id, timeout=20)
         raw_text6 = input6.text
