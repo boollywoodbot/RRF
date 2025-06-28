@@ -1095,13 +1095,25 @@ async def text_handler(bot: Client, m: Message):
         await m.reply_text("<blockquote>Invalid link format.</blockquote>")
         return
     link = match.group(0)
+    
+    # Logical Tree Step 9: Rate limiting
+    if not await rate_limit_per_user(m.from_user.id):
+        await m.reply_text("Rate limit exceeded. Try again later.")
+        return
+    
+    # Logical Tree Step 1: Initialize stats and folder
+    await init_stats_storage(m.from_user.id)
     editable = await m.reply_text(f"<blockquote>**🔹Processing your link...\n🔁Please wait...⏳**</blockquote>")
     await m.delete()
+    
+    # Resolution selection
     await editable.edit(f"╭━━━━❰ᴇɴᴛᴇʀ ʀᴇꜱᴏʟᴜᴛɪᴏɴ❱━━➣ \n┣━━⪼ send `144`  for 144p\n┣━━⪼ send `240`  for 240p\n┣━━⪼ send `360`  for 360p\n┣━━⪼ send `480`  for 480p\n┣━━⪼ send `720`  for 720p\n┣━━⪼ send `1080` for 1080p\n╰━━⌈⚡[`{CREDIT}`]⚡⌋━━➣ ")
     input2: Message = await bot.listen(editable.chat.id, filters=filters.text & filters.user(m.from_user.id))
     raw_text2 = input2.text
     quality = f"{raw_text2}p"
     await input2.delete(True)
+    
+    # Logical Tree Step 2: Resolution mapping
     try:
         if raw_text2 == "144":
             res = "256x144"
@@ -1119,17 +1131,70 @@ async def text_handler(bot: Client, m: Message):
             res = "UN"
     except Exception:
         res = "UN"
+    
     try:
-        Vxy = link.replace("file/d/","uc?export=download&id=").replace("www.youtube-nocookie.com/embed", "youtu.be").replace("?modestbranding=1", "").replace("/view?usp=sharing","")
+        # Logical Tree Step 1: Link sanitization
+        Vxy = await auto_format_garbage([links, link])[1]
         url = Vxy
-        name1 = links.replace("(", "[").replace(")", "]").replace("_", "").replace("\t", "").replace(":", "").replace("/", "").replace("+", "").replace("#", "").replace("|", "").replace("@", "").replace("*", "").replace(".", "").replace("https", "").replace("http", "").strip()
+        name1 = await clean_filename_and_title(links)
         name = f'{name1[:60]}'
         video_link = [name1, url]
         course_name = "Single Link"
-        main_folder = os.path.join("downloads", str(m.chat.id))
-        await process_video_links(m, [video_link], course_name, main_folder)
+        main_folder = await create_main_folder(str(m.from_user.id))
+        
+        # Logical Tree Step 7: Queue management
+        await fifo_task_queue(m.from_user.id, video_link)
+        
+        # Logical Tree Step 2 & 7: Process link
+        link_type = await detect_link_type(video_link)
+        if link_type == "DRM":
+            file_path = await process_drm_link(video_link)
+        elif link_type == "Direct":
+            file_path = await yt_dlp_downloader(video_link, quality)
+        elif link_type == "PDF":
+            file_path = await download_pdf(video_link)
+        elif link_type == "Image":
+            file_path = await download_image(video_link)
+        elif link_type == "Audio":
+            file_path = await download_audio(video_link)
+        elif link_type == "ZIP":
+            file_path = await download_zip(video_link)
+        else:
+            file_path = await yt_dlp_downloader(video_link, quality)
+        
+        if file_path:
+            # Logical Tree Step 3: Post-processing
+            file_path, caption = await post_download_processing(file_path, video_link, course_name)
+            
+            # Logical Tree Step 4: Upload
+            success = await smart_uploader_to_telegram(file_path, caption, m)
+            
+            # Logical Tree Step 5: Update stats
+            size_mb = os.path.getsize(file_path) / (1024 * 1024)
+            await update_download_stats(m.from_user.id, name1, time.time(), size_mb)
+            await notify_user_status(m, success, name1)
+            
+            # Logical Tree Step 13: Generate PDF summary
+            await generate_pdf_summary(m.from_user.id, m.chat.id)
+        
+        else:
+            await notify_user_status(m, False, name1)
+        
     except Exception as e:
-        await m.reply_text(f"⚠️𝐃𝐨𝐰𝐧𝐥𝐨𝐚𝐝𝐢𝐧𝐠 𝐈𝐧𝐭𝐞𝐫𝐮𝐩𝐭𝐞𝐝\n\n🔗𝐋𝐢𝐧𝐤 » `{link}`\n\n__**⚠️Failed Reason »**__\n<blockquote>{str(e)}</blockquote>")
+        # Logical Tree Step 6: Recheck for expired links
+        if "401" in str(e) or "403" in str(e):
+            new_token = await auto_recheck_token(url)
+            if new_token:
+                video_link[1] = await decrypt_link(url, new_token)
+                await async_download_upload_pipeline(m, [video_link], course_name, main_folder)
+            else:
+                await m.reply_text(f"⚠️𝐃𝐨𝐰𝐧𝐥𝐨𝐚𝐝𝐢𝐧𝐠 𝐈𝐧𝐭𝐞𝐫𝐮𝐩𝐭𝐞𝐍\n\n🔗𝐋𝐢𝐧𝐤 » `{link}`\n\n__**⚠️Failed Reason »**__\n<blockquote>{str(e)}</blockquote>")
+        else:
+            await m.reply_text(f"⚠️𝐃𝐨𝐰𝐧𝐥𝐨𝐚𝐝𝐢𝐧𝐠 𝐈𝐧𝐭𝐞𝐫𝐮𝐩𝐭𝐞𝐍\n\n🔗𝐋𝐢𝐧𝐤 » `{link}`\n\n__**⚠️Failed Reason »**__\n<blockquote>{str(e)}</blockquote>")
+    
+    finally:
+        # Logical Tree Step 11: Cleanup
+        await cleanup_temp_files()
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
