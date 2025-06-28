@@ -1405,9 +1405,165 @@ async def notify_owner(message: str):
     await bot.send_message(OWNER, message)
 
 async def process_zip_file(message: Message):
-    """Process ZIP file upload."""
+    """Process ZIP file upload (Logical Tree Step 1)."""
     try:
         file_path = await message.download(file_name=os.path.join("downloads", message.document.file_name))
         extract_path = os.path.join("downloads", "extracted")
         os.makedirs(extract_path, exist_ok=True)
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_path)
+        
+        txt_files = [f for f in os.listdir(extract_path) if f.endswith('.txt')]
+        if not txt_files:
+            await message.reply_text("No .txt files found in the ZIP.")
+            return
+        
+        for txt_file in txt_files:
+            txt_path = os.path.join(extract_path, txt_file)
+            links, course_name = await parse_txt_file_and_links(txt_path)
+            main_folder = await create_main_folder(course_name)
+            await init_stats_storage(message.from_user.id)
+            await message.reply_text(f"**Total 🔗 links found in {txt_file}: {len(links)}**")
+            await process_video_links(message, links, course_name, main_folder)
+        
+        await log_activity(message, f"Processed ZIP file with {len(txt_files)} TXT files")
+        shutil.rmtree(extract_path)
+        os.remove(file_path)
+    except Exception as e:
+        await message.reply_text(f"Error processing ZIP: {str(e)}")
+        await log_activity(message, f"ZIP processing failed: {str(e)}")
+    finally:
+        await cleanup_temp_files()
+
+async def check_system_resources() -> Dict:
+    """Check system resources (Logical Tree Step 9)."""
+    return {
+        "cpu_percent": psutil.cpu_percent(),
+        "memory_percent": psutil.virtual_memory().percent,
+        "disk_usage": psutil.disk_usage('/').percent
+    }
+
+async def monitor_performance(sender_id: int):
+    """Monitor bot performance (Logical Tree Step 9)."""
+    resources = await check_system_resources()
+    if resources["cpu_percent"] > 90 or resources["memory_percent"] > 90:
+        await notify_owner(f"High resource usage detected: CPU {resources['cpu_percent']}%, Memory {resources['memory_percent']}%")
+        await blacklist_spammy_users(sender_id)
+
+async def handle_rate_limit_exceeded(sender_id: int, message: Message):
+    """Handle rate limit exceeded scenario (Logical Tree Step 9)."""
+    await message.reply_text("Rate limit exceeded. Please try again after some time.")
+    await log_activity(message, f"Rate limit exceeded for user {sender_id}")
+
+async def auto_cleanup_old_files():
+    """Auto cleanup old files based on policy (Logical Tree Step 11)."""
+    await cleanup_temp_files()
+    await log_activity(None, "Auto cleanup executed")
+
+async def queue_status(message: Message):
+    """Show queue status (Logical Tree Step 12)."""
+    sender_id = message.from_user.id
+    queue_info = await view_user_queue(sender_id)
+    await message.reply_text(queue_info)
+    await log_activity(message, f"Checked queue status for user {sender_id}")
+
+async def clear_queue(message: Message):
+    """Clear user queue (Logical Tree Step 12)."""
+    sender_id = message.from_user.id
+    if sender_id in DOWNLOAD_QUEUES:
+        DOWNLOAD_QUEUES[sender_id] = Queue()
+        await message.reply_text("Download queue cleared.")
+        await log_activity(message, f"Cleared queue for user {sender_id}")
+    else:
+        await message.reply_text("No active queue found.")
+
+async def set_quality_preference(message: Message, quality: str):
+    """Set quality preference for downloads (Logical Tree Step 9)."""
+    valid_qualities = ["144p", "240p", "360p", "480p", "720p", "1080p"]
+    if quality not in valid_qualities:
+        await message.reply_text(f"Invalid quality. Choose from: {', '.join(valid_qualities)}")
+        return
+    ACTIVE_DOWNLOADS[message.from_user.id] = {"quality": quality}
+    await message.reply_text(f"Download quality set to {quality}")
+    await log_activity(message, f"Set quality to {quality} for user {message.from_user.id}")
+
+async def version_check(message: Message):
+    """Check bot version (Logical Tree Step 10)."""
+    await message.reply_text(f"Bot Version: {BOT_VERSION}")
+    await log_activity(message, "Checked bot version")
+
+async def ping_bot(message: Message):
+    """Ping bot to check latency (Logical Tree Step 12)."""
+    start_time = time.time()
+    pong = await message.reply_text("Pong!")
+    latency = (time.time() - start_time) * 1000
+    await pong.edit(f"Pong! Latency: {latency:.2f} ms")
+    await log_activity(message, f"Pinged bot, latency: {latency:.2f} ms")
+
+# --- Bot Startup ---
+
+async def main():
+    """Main function to start the bot."""
+    await bot.start()
+    await notify_owner(f"Bot started. Version: {BOT_VERSION}")
+    asyncio.create_task(auto_update())
+    await bot.send_message(OWNER, "Bot is online!")
+    await asyncio.sleep(5)
+    await bot.send_message(
+        OWNER,
+        f"🟢 Bot is running!\nVersion: {BOT_VERSION}\nUsers: {len(AUTH_USERS)}\nChannels: {len(CHANNELS_LIST)}"
+    )
+    await asyncio.sleep(3600)  # Keep bot running
+
+# --- Command Handlers for Additional Features ---
+
+@bot.on_message(filters.command(["queue"]) & filters.private)
+async def queue_handler(client: Client, message: Message):
+    if message.from_user.id not in AUTH_USERS:
+        return await message.reply_text("**This command only for authorized users**")
+    await queue_status(message)
+
+@bot.on_message(filters.command(["clearqueue"]) & filters.private)
+async def clear_queue_handler(client: Client, message: Message):
+    if message.from_user.id not in AUTH_USERS:
+        return await message.reply_text("**This command only for authorized users**")
+    await clear_queue(message)
+
+@bot.on_message(filters.command(["setpolicy"]) & filters.private)
+async def set_policy_handler(client: Client, message: Message):
+    if message.from_user.id not in AUTH_USERS:
+        return await message.reply_text("**This command only for authorized users**")
+    try:
+        policy = message.command[1]
+        await set_cleanup_policy(policy)
+        await message.reply_text(f"Cleanup policy set to: {policy}")
+        await log_activity(message, f"Set cleanup policy to {policy}")
+    except (IndexError, ValueError):
+        await message.reply_text("Please provide a valid policy (after_upload, daily, keep_last_2)")
+
+@bot.on_message(filters.command(["version"]) & filters.private)
+async def version_handler(client: Client, message: Message):
+    if message.from_user.id not in AUTH_USERS:
+        return await message.reply_text("**This command only for authorized users**")
+    await version_check(message)
+
+@bot.on_message(filters.command(["ping"]) & filters.private)
+async def ping_handler(client: Client, message: Message):
+    if message.from_user.id not in AUTH_USERS:
+        return await message.reply_text("**This command only for authorized users**")
+    await ping_bot(message)
+
+@bot.on_message(filters.command(["setquality"]) & filters.private)
+async def set_quality_handler(client: Client, message: Message):
+    if message.from_user.id not in AUTH_USERS:
+        return await message.reply_text("**This command only for authorized users**")
+    try:
+        quality = message.command[1]
+        await set_quality_preference(message, quality)
+    except IndexError:
+        await message.reply_text("Please provide a quality (e.g., 480p, 720p, 1080p)")
+
+# --- Run Bot ---
+
+if __name__ == "__main__":
+    asyncio.run(main())
